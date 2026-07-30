@@ -1,0 +1,53 @@
+const crypto = require("crypto");
+const admin = require("firebase-admin");
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
+  });
+}
+
+const db = admin.firestore();
+
+exports.handler = async (event) => {
+  try {
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+    const signature = event.headers["x-razorpay-signature"];
+
+    const expectedSignature = crypto
+      .createHmac("sha256", webhookSecret)
+      .update(event.body)
+      .digest("hex");
+
+    if (signature !== expectedSignature) {
+      return {
+        statusCode: 400,
+        body: "Invalid signature"
+      };
+    }
+
+    const data = JSON.parse(event.body);
+
+    const payment = data.payload.payment.entity;
+
+    await db.collection("payments").add({
+      payment_id: payment.id,
+      amount: payment.amount / 100,
+      status: payment.status,
+      customer: payment.email || "",
+      createdAt: new Date()
+    });
+
+    return {
+      statusCode: 200,
+      body: "Webhook received"
+    };
+
+  } catch (error) {
+    return {
+      statusCode: 500,
+      body: error.message
+    };
+  }
+};
