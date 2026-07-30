@@ -1,0 +1,7 @@
+{
+  "name": "razorpay-webhook",
+  "version": "1.0.0",
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}
