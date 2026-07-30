@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Krushna Cosmetics - Store & Udhar Management System</title>
+
+<!-- Firebase SDKs (Compatibility Version for Direct Browser Scripting) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+  :root {
+    --bg-main: #0b1329;
+    --card-bg: #16223f;
+    --accent: #0284c7;
+    --accent-hover: #0369a1;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --border: #24345d;
+    --success: #16a34a;
+    --warning: #eab308;
+    --danger: #dc2626;
+    --purple: #8b5cf6;
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 12px;
+    background: var(--bg-main);
+    color: var(--text-primary);
+  }
+
+  .container { max-width: 650px; margin: 0 auto; }
+
+  /* Brand Header */
+  .brand-header {
+    text-align: center;
+    padding: 20px 10px;
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    margin-bottom: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  }
+  .brand-header h1 { margin: 0 0 5px 0; color: #38bdf8; font-size: 24px; letter-spacing: 0.5px; }
+  .brand-header p { margin: 2px 0; font-size: 13px; color: var(--text-secondary); }
+
+  /* Card Components */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    padding: 18px;
+    margin-bottom: 15px;
+    border-radius: 14px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+  }
+  .card-title {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    color: #38bdf8;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+
+  /* Form Styling */
+  input, select, textarea, button {
+    width: 100%;
+    padding: 11px;
+    margin: 6px 0;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    box-sizing: border-box;
+    font-size: 14px;
+  }
+  input, select, textarea { background: #0c162d; color: #ffffff; outline: none; }
+  input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  
+  button {
+    background: var(--accent);
+    color: white;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  button:hover { background: var(--accent-hover); }
+  
+  .btn-success { background: var(--success); }
+  .btn-danger { background: var(--danger); }
+  .btn-wa { background: #25d366; color: black; font-weight: 700; }
+  .btn-link { background: var(--purple); color: white; }
+  
+  .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+  .bg-active { background: rgba(22, 163, 74, 0.2); color: #4ade80; border: 1px solid var(--success); }
+  .bg-pending { background: rgba(234, 179, 8, 0.2); color: #fde047; border: 1px solid var(--warning); }
+  .bg-completed { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; }
+  .bg-failed { background: rgba(220, 38, 38, 0.2); color: #f87171; border: 1px solid var(--danger); }
+
+  /* Product Grid */
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+  }
+  .product-card {
+    background: #0c162d;
+    padding: 10px;
+    border-radius: 10px;
+    text-align: center;
+    border: 1px solid var(--border);
+    position: relative;
+  }
+  .product-card img {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 6px;
+  }
+  .product-title { font-size: 12px; font-weight: 600; margin: 6px 0 2px 0; }
+
+  /* Horizontal Chairs Gallery Styling */
+  .chair-horizontal-container {
+    display: flex;
+    flex-direction: row;
+    gap: 15px;
+    overflow-x: auto;
+    padding: 5px 0;
+    white-space: nowrap;
+  }
+  .chair-horizontal-container::-webkit-scrollbar { height: 8px; }
+  .chair-horizontal-container::-webkit-scrollbar-thumb { background: #0284c7; border-radius: 4px; }
+  .chair-card {
+    background: #0c162d;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px;
+    flex: 0 0 150px;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  }
+  .chair-card img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 8px;
+    display: block;
+  }
+  .chair-title {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #cbd5e1;
+    font-weight: bold;
+    white-space: normal;
+  }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+  th, td { border: 1px solid var(--border); padding: 7px; text-align: center; }
+  th { background: #0c162d; color: var(--text-secondary); }
+
+  /* Weekly Report Box */
+  .weekly-report-box {
+    background: #0c162d;
+    border: 1px solid #38bdf8;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  /* Billing Row Layout */
+  .bill-item-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+
+  /* Modal */
+  .modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+  }
+  .modal-content {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: 14px;
+    max-width: 480px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  footer {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 20px;
+    padding: 15px;
+    border-top: 1px solid var(--border);
+    background: var(--card-bg);
+    border-radius: 12px;
+  }
+  footer a { color: #38bdf8; text-decoration: none; margin: 0 5px; cursor: pointer; }
+  
+  .cloud-status {
+    font-size: 11px;
+    color: #4ade80;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  
+  <!-- PUBLIC STORE HEADER -->
+  <div class="brand-header">
+    <h1>🛍️ Krushna Cosmetics</h1>
+    <p>📍 Pavan Nagar, Ranjangaon Shenpunji | 📞 +91 8275237974</p>
+    <p style="color:#38bdf8; font-size:11px; margin-top:4px;">Official Store & Udhar AutoPay Portal</p>
+    <div class="cloud-status">☁️ Live Cloud Database Connected</div>
+  </div>
+
+  <!-- 1. PUBLIC STORE PRODUCTS -->
+  <div class="card">
+    <div class="card-title"><span>💄 Store Products</span></div>
+    <div class="product-grid">
+      <div class="product-card">
+        <img src="https://images.unsplash.com/photo-1586495777744-4413f21062fa?w=300" loading="lazy" alt="Lipstick">
+        <div class="product-title">Matte Lipstick Set</div>
+      </div>
+      <div class="product-card">
+        <img src="https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=300" loading="lazy" alt="Face Cream">
+        <div class="product-title">Glow Face Cream</div>
+      </div>
+      <div class="product-card">
+        <img src="https://images.unsplash.com/photo-1631729371254-42c2892f0e6e?w=300" loading="lazy" alt="Makeup Kit">
+        <div class="product-title">Pro Makeup Kit</div>
+      </div>
+      <div class="product-card">
+        <img src="https://images.unsplash.com/photo-1512496015851-a90fb38ba796?w=300" loading="lazy" alt="Eyeliner">
+        <div class="product-title">Eyeliner Combo</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. SALON CHAIRS GALLERY -->
+  <div class="card">
+    <div class="card-title"><span>💈 Salon Chairs Gallery</span></div>
+    <div class="chair-horizontal-container">
+      <div class="chair-card"><img src="https://i.postimg.cc/52x51HKh/51um5ve-K9a-L-AC-UF894-1000-QL80.jpg" loading="lazy"><div class="chair-title">Salon Chair 1</div></div>
+      <div class="chair-card"><img src="https://i.postimg.cc/4y2KgdKx/salon-hydraulic-chair-250x250.jpg" loading="lazy"><div class="chair-title">Salon Chair 2</div></div>
+      <div class="chair-card"><img src="https://i.postimg.cc/mrWPRKg0/720YOU.jpg" loading="lazy"><div class="chair-title">Salon Chair 3</div></div>
+      <div class="chair-card"><img src="https://i.postimg.cc/fT3ydMtz/61Wjc-UYn-KAL-AC-UF894-1000-QL80.jpg" loading="lazy"><div class="chair-title">Salon Chair 4</div></div>
+      <div class="chair-card"><img src="https://i.postimg.cc/k41MVH72/P170260.jpg" loading="lazy"><div class="chair-title">Salon Chair 5</div></div>
+      <div class="chair-card"><img src="https://i.postimg.cc/RZ7M1hv8/leather-heavy-duty-hydraulic-salon-chair-black-28-4x43-3x43-3-inch-2219634584-jfkk6khs.jpg" loading="lazy"><div class="chair-title">Salon Chair 6</div></div>
+      <div class="chair-card"><img src="https://i.postimg.cc/zXShvJ9D/41Sqq1EVTML-AC-UF894-1000-QL80.jpg" loading="lazy"><div class="chair-title">Salon Chair 7</div></div>
+      <div class="chair-card"><img src="https://i.postimg.cc/Df1Jpvfd/41TSLVd-GB4L-AC-UF1000-1000-QL80.jpg" loading="lazy"><div class="chair-title">Salon Chair 8</div></div>
+    </div>
+  </div>
+
+  <!-- 3. PARLOUR CHAIRS GALLERY -->
+  <div class="card">
+    <div class="card-title"><span>💅 Parlour Chairs Gallery</span></div>
+    <div class="chair-horizontal-container">
+      <div class="chair-card"><img src="https://i.postimg.cc/SRfB22L4/pithadiya-beauty-parlour-chair.jpg" loading="lazy"><div class="chair-title">Parlour Chair 1</div></div>
+      <div class="chair-card"><img src="https://i.postimg.cc/MKZ43GbR/kids-salon-chair-500x500.jpg" loading="lazy"><div class="chair-title">Kids Chair 2</div></div>
+      <div class="chair-card"><img src="https://i.postimg.cc/xTdxy4nM/luxurious-beauty-parlour-facial-bed-261.jpg" loading="lazy"><div class="chair-title">Facial Bed 3</div></div>
+      <div class="chair-card"><img src="https://i.postimg.cc/CLtNCMcQ/beauty-parlour-facial-bed-500x500-500x500.jpg" loading="lazy"><div class="chair-title">Facial Bed 4</div></div>
+      <div class="chair-card"><img src="https://i.postimg.cc/6QhnPBhW/product-jpeg.jpg" loading="lazy"><div class="chair-title">Parlour Chair 5</div></div>
+      <div class="chair-card"><img src="https://i.postimg.cc/GmFyBbVq/20230428044050-cb549857-a5e3-4ddf-a33a-1dab31f93cca.jpg" loading="lazy"><div class="chair-title">Parlour Chair 6</div></div>
+      <div class="chair-card"><img src="https://i.postimg.cc/13XzSsPQ/61v-F5ZFl1-L.jpg" loading="lazy"><div class="chair-title">Parlour Chair 7</div></div>
+      <div class="chair-card"><img src="https://i.postimg.cc/V681J8yf/1775750774077-professional-cool-hot-dual-arm-facial-steamer.png" loading="lazy"><div class="chair-title">Facial Steamer 8</div></div>
+    </div>
+  </div>
+
+  <!-- PUBLIC CUSTOMER SEARCH PORTAL -->
+  <div class="card">
+    <div class="card-title"><span>🔍 Customer Portal - Search Udhar & Mandate</span></div>
+    <p style="font-size: 12px; color: var(--text-secondary); margin:0 0 8px 0;">Apna Name ya Mobile Number daal kar balance aur AutoPay status check karein:</p>
+    <div style="display:flex; gap:8px;">
+      <input type="text" id="searchQuery" placeholder="Enter Name or Mobile Number" style="margin:0;">
+      <button onclick="searchCustomer()" style="width: auto; padding: 0 16px;">Search</button>
+      <button onclick="clearSearch()" class="btn-danger" style="width: auto; padding: 0 16px;">🧹 Clear</button>
+    </div>
+    
+    <div id="customerSearchResult" style="margin-top: 15px;"></div>
+  </div>
+
+  <!-- PUBLIC ONLINE ORDER SECTION -->
+  <div class="card" style="border: 1px solid #25d366;">
+    <div class="card-title" style="color:#25d366;"><span>📦 Place Online Order (WhatsApp)</span></div>
+    <p style="font-size: 12px; color: var(--text-secondary); margin:0 0 10px 0;">Saman ka order dene ke liye apni details bharen aur WhatsApp par submit karein:</p>
+    
+    <input type="text" id="orderCustName" placeholder="Your Full Name">
+    <input type="text" id="orderCustMobile" placeholder="Mobile Number (10 digits)">
+    <input type="text" id="orderCustAddress" placeholder="Delivery Address / Area">
+    <textarea id="orderDetails" rows="3" placeholder="Likhien aapko kya-kya saman chahiye"></textarea>
+
+    <button class="btn-wa" onclick="sendOrderWhatsApp()" style="margin-top:8px;">🚀 Place Order via WhatsApp</button>
+  </div>
+
+  <!-- ADMIN LOGIN BOX -->
+  <div class="card" id="adminLoginCard">
+    <div class="card-title"><span>🔒 Shop Admin Login</span></div>
+    <input type="password" id="adminPasswordInput" placeholder="Enter Admin Password">
+    <button onclick="loginAdmin()">🔓 Login as Admin</button>
+  </div>
+
+  <!-- PROTECTED ADMIN PANEL -->
+  <div id="adminPanel" style="display: none;">
+    
+    <div class="card" style="border: 1px solid #38bdf8; background: #0c162d;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="color: #38bdf8; font-weight: bold; font-size:14px;">🔑 Admin Mode Active</span>
+        <button class="btn-danger" style="width: auto; padding: 5px 12px; margin: 0; font-size:12px;" onclick="logoutAdmin()">Logout</button>
+      </div>
+    </div>
+
+    <!-- ADMIN BILLING GENERATOR SECTION (DROPDOWN) -->
+    <div class="card" style="border: 1px solid #8b5cf6;">
+      <details>
+        <summary style="cursor:pointer; outline:none; list-style:none;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-weight:bold; color:#8b5cf6; font-size:16px;">🧾 Admin Billing & Invoice Generator ▾</span>
+            <button class="btn-danger" title="Clear All Bill Data" onclick="event.preventDefault(); resetBillingForm();" style="width: auto; margin: 0; padding: 4px 10px; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+              🔄 Clear
+            </button>
+          </div>
+        </summary>
+        
+        <div style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px;">
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="billCustName" placeholder="Customer Name (Required)">
+            <input type="text" id="billCustMobile" placeholder="Mobile No. (Optional)">
+          </div>
+
+          <div id="billingItemsContainer">
+            <div class="bill-item-row">
+              <input type="text" class="bill-mat" placeholder="Material / Item Name" style="flex: 2;">
+              <input type="number" class="bill-qty" placeholder="Qty" value="1" style="flex: 1;" oninput="calculateBillTotal()">
+              <input type="number" class="bill-price" placeholder="Price (₹)" style="flex: 1;" oninput="calculateBillTotal()">
+              <button class="btn-danger" style="width: auto; padding: 6px 10px;" onclick="removeBillRow(this)">✖</button>
+            </div>
+          </div>
+
+          <button style="background: #334155; margin-top: 4px; font-size: 12px;" onclick="addBillRow()">➕ Add More Material Item</button>
+
+          <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; background: #0c162d; padding: 10px; border-radius: 8px;">
+            <span>Total Bill Amount:</span>
+            <b style="font-size: 18px; color: #4ade80;">₹<span id="billGrandTotal">0</span></b>
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-top: 10px;">
+            <button style="background: var(--accent); flex: 1;" onclick="downloadGeneratedBillPDF()">📄 Download Bill PDF</button>
+            <button class="btn-wa" style="flex: 1; display:flex; justify-content:center; align-items:center; gap:6px;" onclick="shareBillOnWhatsApp()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg> Send WhatsApp
+            </button>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <!-- ADMIN DROPDOWN: RAZORPAY PAYMENT LINK CONFIG -->
+    <div class="card" style="background: #0c162d;">
+      <details>
+        <summary style="cursor:pointer; font-weight:600; color:#38bdf8; font-size:15px;">
+          ⚙️ Razorpay Direct Payment Link ▾
+        </summary>
+        <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px;">
+          <label style="font-size:11px; color: var(--text-secondary);">Direct Payment Link:</label>
+          <input type="text" id="razorpayMeLink" value="https://razorpay.me/@krushnashivajlsontakke">
+        </div>
+      </details>
+    </div>
+
+    <!-- REGISTER CUSTOMER & AUTOPAY SECTION WITH DROPDOWN -->
+    <div class="card" style="border: 1px solid #16a34a;">
+      <details>
+        <summary style="cursor:pointer; font-weight:bold; color:#4ade80; font-size:16px;">
+          👤 Register Customer & Set AutoPay Plan ▾
+        </summary>
+        <div style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px;">
+          <input type="text" id="custName" placeholder="Customer Full Name">
+          <input type="text" id="custMobile" placeholder="Mobile Number (10 digits)">
+          <input type="number" id="loanAmount" placeholder="Total Udhar (₹)" value="3000">
+          
+          <label style="font-size:11px; color: #38bdf8; font-weight:bold; margin-top:4px; display:block;">⚡ Select Weekly AutoPay EMI Plan:</label>
+          <select id="autoPayPlanSelect">
+            <option value="300">₹300 / Week AutoPay</option>
+            <option value="500">₹500 / Week AutoPay</option>
+            <option value="700">₹700 / Week AutoPay</option>
+            <option value="1000">₹1,000 / Week AutoPay</option>
+            <option value="2000">₹2,000 / Week AutoPay</option>
+          </select>
+          
+          <label style="font-size:11px; color: #38bdf8; margin-top:6px; display:block;">🧾 Upload Customer Bill Photo (Gallery):</label>
+          <input type="file" id="custBillPhoto" accept="image/*" style="background:#0c162d; padding:6px;">
+
+          <button class="btn-success" style="margin-top:10px;" onclick="registerCustomer()">➕ Save Entry & Send Auto-Debit Link to WhatsApp</button>
+        </div>
+      </details>
+    </div>
+
+    <!-- Sunday - Monday Smart Auto Collection Engine -->
+    <div class="card">
+      <div class="card-title"><span>📅 Sunday - Monday Smart Auto-Deduction Engine</span></div>
+      <p style="font-size: 11px; color: var(--text-secondary); margin:0 0 8px 0;">
+        • <b>Sunday:</b> Auto-Deduction Attempt for Approved Mandates<br>
+        • <b>Monday:</b> Automatic Retry Attempt if Sunday attempt failed/pending balance.
+      </p>
+
+      <!-- WEEKLY COLLECTION SUMMARY REPORT WITH SIMPLE MONTH & WEEK DATES FILTER -->
+      <div class="weekly-report-box">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+          <b style="color:#38bdf8; font-size:14px;">📊 Weekly Collection Report</b>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <select id="reportMonthFilter" onchange="populateWeekOptionsForMonth()" style="width: auto; margin: 0; padding: 4px 8px; font-size: 11px; background: #1e293b; color: #f8fafc; border-color: #38bdf8; border-radius: 6px;">
+            </select>
+            <select id="reportWeekFilter" onchange="renderWeeklySummaryReport()" style="width: auto; margin: 0; padding: 4px 8px; font-size: 11px; background: #1e293b; color: #f8fafc; border-color: #38bdf8; border-radius: 6px;">
+            </select>
+          </div>
+        </div>
+        <div id="weeklySummaryContent"></div>
+      </div>
+
+      <button style="background: var(--purple);" onclick="runSundayMondayAutoCollection()">⚡ Trigger Auto-Deduction Request</button>
+    </div>
+
+    <!-- Master Database (Admin Only) -->
+    <div class="card">
+      <div class="card-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <span>📄 Admin Master Customer Database</span>
+        <input type="text" id="adminSearchQuery" onkeyup="renderAdminDashboard()" placeholder="🔍 Search Name / Mobile..." style="width: auto; max-width: 200px; padding: 6px 10px; margin: 0; font-size: 12px;">
+      </div>
+      <div id="adminCustomerCards"></div>
+    </div>
+
+  </div>
+
+  <!-- Compliance Footer -->
+  <footer>
+    <p><b>Krushna Cosmetics Store</b></p>
+    <p>📍 Pavan Nagar, Ranjangaon Shenpunji | 📞 +91 8275237974</p>
+    <p style="margin-top: 8px;">
+      <a onclick="showModal('privacy')">Privacy Policy</a> | 
+      <a onclick="showModal('terms')">Terms & Conditions</a> | 
+      <a onclick="showModal('refund')">Refund Policy</a> | 
+      <a onclick="showModal('contact')">Contact Us</a>
+    </p>
+    <p style="font-size: 10px; color: var(--text-secondary); margin-top: 6px;">© 2026 Krushna Cosmetics. All Rights Reserved.</p>
+  </footer>
+</div>
+
+<!-- Policy & Image Popup Modal -->
+<div id="policyModal" class="modal">
+  <div class="modal-content">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:8px;">
+      <h3 id="modalTitle" style="margin:0; color:#38bdf8;">Policy</h3>
+      <button class="btn-danger" style="width:auto; padding:3px 10px; margin:0;" onclick="closeModal()">X</button>
+    </div>
+    <div id="modalBody" style="margin-top:10px; text-align:center;"></div>
+  </div>
+</div>
+
+<script>
+// --- FIREBASE CONFIGURATION & INITIALIZATION ---
+const firebaseConfig = {
+  apiKey: "AIzaSyDg9HtizoY99qahP7qVEfyIENrHNBqvD0U",
+  authDomain: "krushna-cosmetic.firebaseapp.com",
+  projectId: "krushna-cosmetic",
+  storageBucket: "krushna-cosmetic.firebasestorage.app",
+  messagingSenderId: "505110516689",
+  appId: "1:505110516689:web:2b62ff6d7557a4409d06f0"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const ADMIN_PASSWORD = "krushna8620";
+const SHOP_WHATSAPP_NUMBER = "918275237974";
+
+const PLAN_BUTTONS = {
+  "300": "pl_THevUWJQ2KAPuL",
+  "500": "pl_THeyuXiLKV6X0V",
+  "700": "pl_THf1WrmeyT9qNK",
+  "1000": "pl_THf2xmF7hk99d7",
+  "2000": "pl_THf4zwjhjUlwvp"
+};
+
+let customers = [];
+
+// Realtime Firestore Listener (Changes propagate to all connected devices instantly)
+db.collection("customers").onSnapshot((snapshot) => {
+  customers = [];
+  snapshot.forEach((doc) => {
+    customers.push(doc.data());
+  });
+  
+  if (document.getElementById("adminPanel").style.display !== "none") {
+    renderAdminDashboard();
+  }
+}, (error) => {
+  console.error("Firebase Sync Error: ", error);
+});
+
+// Cloud Sync Function
+function saveCustomerToCloud(customerObj) {
+  return db.collection("customers").doc(String(customerObj.id)).set(customerObj);
+}
+
+function deleteCustomerFromCloud(id) {
+  return db.collection("customers").doc(String(id)).delete();
+}
+
+if(sessionStorage.getItem("is_admin_logged_in") === "true") {
+  showAdminPanel();
+}
+
+/* BILLING ENGINE JS FUNCTIONS */
+function addBillRow() {
+  let container = document.getElementById('billingItemsContainer');
+  let row = document.createElement('div');
+  row.className = 'bill-item-row';
+  row.innerHTML = `
+    <input type="text" class="bill-mat" placeholder="Material / Item Name" style="flex: 2;">
+    <input type="number" class="bill-qty" placeholder="Qty" value="1" style="flex: 1;" oninput="calculateBillTotal()">
+    <input type="number" class="bill-price" placeholder="Price (₹)" style="flex: 1;" oninput="calculateBillTotal()">
+    <button class="btn-danger" style="width: auto; padding: 6px 10px;" onclick="removeBillRow(this)">✖</button>
+  `;
+  container.appendChild(row);
+}
+
+function removeBillRow(btn) {
+  let rows = document.querySelectorAll('.bill-item-row');
+  if(rows.length > 1) {
+    btn.parentElement.remove();
+    calculateBillTotal();
+  } else {
+    alert("Kam se kam ek item hona chahiye!");
+  }
+}
+
+function resetBillingForm() {
+  document.getElementById('billCustName').value = '';
+  document.getElementById('billCustMobile').value = '';
+  let container = document.getElementById('billingItemsContainer');
+  container.innerHTML = `
+    <div class="bill-item-row">
+      <input type="text" class="bill-mat" placeholder="Material / Item Name" style="flex: 2;">
+      <input type="number" class="bill-qty" placeholder="Qty" value="1" style="flex: 1;" oninput="calculateBillTotal()">
+      <input type="number" class="bill-price" placeholder="Price (₹)" style="flex: 1;" oninput="calculateBillTotal()">
+      <button class="btn-danger" style="width: auto; padding: 6px 10px;" onclick="removeBillRow(this)">✖</button>
+    </div>
+  `;
+  calculateBillTotal();
+}
+
+function calculateBillTotal() {
+  let total = 0;
+  let rows = document.querySelectorAll('.bill-item-row');
+  rows.forEach(row => {
+    let qty = parseFloat(row.querySelector('.bill-qty').value) || 0;
+    let price = parseFloat(row.querySelector('.bill-price').value) || 0;
+    total += (qty * price);
+  });
+  document.getElementById('billGrandTotal').innerText = total.toFixed(2);
+}
+
+function getBillData() {
+  let name = document.getElementById('billCustName').value.trim();
+  let mobile = document.getElementById('billCustMobile').value.trim();
+  
+  if(!name) {
+    alert("Kripya Customer Name enter karein!");
+    return null;
+  }
+
+  let items = [];
+  let grandTotal = 0;
+  let rows = document.querySelectorAll('.bill-item-row');
+
+  rows.forEach(row => {
+    let mat = row.querySelector('.bill-mat').value.trim();
+    let qty = parseFloat(row.querySelector('.bill-qty').value) || 0;
+    let price = parseFloat(row.querySelector('.bill-price').value) || 0;
+    if(mat && qty > 0 && price > 0) {
+      let subTotal = qty * price;
+      grandTotal += subTotal;
+      items.push({ material: mat, qty: qty, price: price, subTotal: subTotal });
+    }
+  });
+
+  if(items.length === 0) {
+    alert("Kripya kam se kam ek Material, Qty aur Price sahi se enter karein!");
+    return null;
+  }
+
+  return { name, mobile, items, grandTotal };
+}
+
+function downloadGeneratedBillPDF() {
+  let data = getBillData();
+  if(!data) return;
+
+  let currentDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  let itemsRowsHtml = data.items.map((item, idx) => `
+    <tr>
+      <td style="padding:8px; border-bottom:1px solid #e2e8f0; text-align:center;">${idx + 1}</td>
+      <td style="padding:8px; border-bottom:1px solid #e2e8f0;">${item.material}</td>
+      <td style="padding:8px; border-bottom:1px solid #e2e8f0; text-align:center;">${item.qty}</td>
+      <td style="padding:8px; border-bottom:1px solid #e2e8f0; text-align:right;">₹${item.price.toFixed(2)}</td>
+      <td style="padding:8px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold;">₹${item.subTotal.toFixed(2)}</td>
+    </tr>
+  `).join('');
+
+  let printWindow = window.open('', '', 'height=800,width=850');
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Invoice_${data.name.replace(/\s+/g, '_')}</title>
+      <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 25px; color: #1e293b; background: #fff; }
+        .invoice-box { max-width: 800px; margin: auto; border: 1px solid #cbd5e1; border-radius: 8px; padding: 25px; }
+        .header { border-bottom: 2px solid #0284c7; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
+        .store-title { font-size: 22px; font-weight: bold; color: #0284c7; margin: 0 0 4px 0; }
+        .store-sub { font-size: 12px; color: #64748b; margin: 2px 0; }
+        .doc-title { font-size: 18px; font-weight: bold; text-align: right; color: #0f172a; margin: 0; }
+        .details-grid { display: flex; justify-content: space-between; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 20px; font-size: 13px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 15px; }
+        th { background: #f1f5f9; color: #475569; padding: 8px; border-bottom: 2px solid #cbd5e1; text-align: left; }
+        .total-box { text-align: right; font-size: 16px; margin-top: 15px; background: #f0fdf4; padding: 12px; border-radius: 6px; border: 1px solid #bbf7d0; color: #166534; }
+        .footer { margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 15px; font-size: 11px; text-align: center; color: #94a3b8; }
+        @media print { body { padding: 0; } .invoice-box { border: none; padding: 0; } }
+      </style>
+    </head>
+    <body>
+      <div class="invoice-box">
+        <div class="header">
+          <div>
+            <div class="store-title">🛍️ KRUSHNA COSMETICS</div>
+            <div class="store-sub">📍 Pavan Nagar, Ranjangaon Shenpunji, MH</div>
+            <div class="store-sub">📞 Contact: +91 8275237974</div>
+          </div>
+          <div>
+            <div class="doc-title">TAX INVOICE / RECEIPT</div>
+            <div class="store-sub" style="text-align:right;">Date: ${currentDate}</div>
+          </div>
+        </div>
+
+        <div class="details-grid">
+          <div>
+            <strong>Customer Name:</strong> ${data.name}<br>
+            ${data.mobile ? `<strong>Mobile Number:</strong> +91 ${data.mobile}` : ''}
+          </div>
+          <div style="text-align: right;">
+            <strong>Payment Status:</strong> PAID / RECEIPT
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:center;">#</th>
+              <th>Material / Item Details</th>
+              <th style="text-align:center;">Qty</th>
+              <th style="text-align:right;">Price (₹)</th>
+              <th style="text-align:right;">Subtotal (₹)</th>
+            </tr>
+          </thead>
+          <tbody>${itemsRowsHtml}</tbody>
+        </table>
+
+        <div class="total-box">
+          <strong>Grand Total: ₹${data.grandTotal.toFixed(2)}</strong>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:40px;">
+          <div style="font-size:11px; color:#64748b;">* Computer Generated Invoice</div>
+          <div style="text-align:center;">
+            <div style="font-size:12px; font-weight:bold;">Krushna Cosmetics</div>
+            <div style="font-size:10px; color:#94a3b8; margin-top:20px;">Authorized Signatory</div>
+          </div>
+        </div>
+
+        <div class="footer">Thank you for shopping at Krushna Cosmetics!</div>
+      </div>
+
+      <script>
+        window.onload = function() { window.print(); };
+      <\/script>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
+function shareBillOnWhatsApp() {
+  let data = getBillData();
+  if(!data) return;
+
+  let itemListStr = data.items.map((item, i) => `${i+1}. *${item.material}* - ${item.qty} x ₹${item.price} = ₹${item.subTotal}`).join('\n');
+  
+  let msg = `🛍️ *KRUSHNA COSMETICS - OFFICIAL BILL RECEIPT*\n\n👤 *Customer:* ${data.name}\n📅 *Date:* ${new Date().toLocaleDateString('en-IN')}\n\n📋 *ITEMS PURCHASED:*\n${itemListStr}\n\n💵 *GRAND TOTAL: ₹${data.grandTotal.toFixed(2)}*\n\n📍 Pavan Nagar, Ranjangaon Shenpunji\n📞 +91 8275237974\nDhanyawad! Phir Se Seva Ka Mauka Dena! 🙏`;
+
+  let targetMobile = data.mobile ? `91${data.mobile}` : SHOP_WHATSAPP_NUMBER;
+  window.open(`https://wa.me/${targetMobile}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+// COMPRESS IMAGE
+function compressImage(file, callback) {
+  let reader = new FileReader();
+  reader.onload = function(event) {
+    let img = new Image();
+    img.onload = function() {
+      let canvas = document.createElement("canvas");
+      let ctx = canvas.getContext("2d");
+      let maxW = 500;
+      let scale = maxW / img.width;
+      canvas.width = maxW;
+      canvas.height = img.height * scale;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      callback(canvas.toDataURL("image/jpeg", 0.6));
+    };
+    img.src = event.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function getRazorpayLink() {
+  let input = document.getElementById("razorpayMeLink");
+  return input ? input.value.trim() : "https://razorpay.me/@krushnashivajlsontakke";
+}
+
+function loginAdmin() {
+  let pass = document.getElementById("adminPasswordInput").value.trim();
+  if(pass === ADMIN_PASSWORD) {
+    sessionStorage.setItem("is_admin_logged_in", "true");
+    showAdminPanel();
+    document.getElementById("adminPasswordInput").value = "";
+  } else {
+    alert("Galat Password!");
+  }
+}
+
+function logoutAdmin() {
+  sessionStorage.removeItem("is_admin_logged_in");
+  document.getElementById("adminPanel").style.display = "none";
+  document.getElementById("adminLoginCard").style.display = "block";
+}
+
+function showAdminPanel() {
+  document.getElementById("adminLoginCard").style.display = "none";
+  document.getElementById("adminPanel").style.display = "block";
+  populateMonthFilterOptions();
+  renderAdminDashboard();
+}
+
+function getPaidTotal(customer) {
+  if(!customer || !customer.history) return 0;
+  return customer.history.reduce((acc, curr) => {
+    if(curr && curr.status && curr.status.includes('SUCCESS')) {
+      return acc + (parseFloat(curr.amount) || 0);
+    }
+    return acc;
+  }, 0);
+}
+
+function searchCustomer() {
+  let query = document.getElementById('searchQuery').value.trim().toLowerCase();
+  let resultContainer = document.getElementById('customerSearchResult');
+  
+  if(!query) {
+    alert("Kripya Name ya Mobile number enter karein!");
+    return;
+  }
+
+  let matched = customers.filter(x => 
+    (x.name && x.name.toLowerCase().includes(query)) || (x.mobile && x.mobile.includes(query))
+  );
+
+  if(matched.length === 0) {
+    resultContainer.innerHTML = `
+      <div style="background:#0c162d; padding:12px; border-radius:8px; border:1px solid var(--danger); text-align:center; color:#f87171;">
+        ❌ Koi matching customer nahi mila.
+      </div>`;
+    return;
+  }
+
+  resultContainer.innerHTML = "";
+
+  matched.forEach(c => {
+    let paidAmt = getPaidTotal(c);
+    let remBal = c.totalLoan - paidAmt;
+    
+    let udharRows = (c.udharHistory || []).map(u => 
+      `<tr><td>${u.date}</td><td style="text-align:left;">${u.itemDetails}</td><td style="color:#fde047;">₹${u.amount}</td></tr>`
+    ).join('');
+
+    let paymentRows = (c.history || []).map(h => 
+      `<tr><td>${h.date}</td><td style="color:${h.status.includes('SUCCESS') ? '#4ade80' : '#f87171'};">${h.status}</td><td>₹${h.amount}</td></tr>`
+    ).join('');
+
+    let statusBadge = remBal <= 0 
+      ? `<span class="badge bg-completed">✅ ALL UDHAR CLEARED</span>` 
+      : (c.mandateStatus === 'APPROVED' ? `<span class="badge bg-active">ACTIVE AUTOPAY</span>` : `<span class="badge bg-pending">PENDING CONFIRMATION</span>`);
+
+    let billBtn = c.billImage ? `<button style="background:#0284c7; color:white; padding:6px; font-size:11px; margin-top:6px;" onclick="viewBillImage('${c.id}')">🖼️ View My Bill</button>` : '';
+    let currentWeekly = c.weeklyDeduction || 300;
+
+    let cardDiv = document.createElement("div");
+    cardDiv.style.cssText = "background:#0c162d; padding:15px; border-radius:10px; border:1px solid #38bdf8; margin-bottom:10px;";
+    
+    cardDiv.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <b style="font-size:15px;">👋 ${c.name}</b>
+        ${statusBadge}
+      </div>
+      <hr style="border-color:var(--border); margin:10px 0;">
+      <p style="margin:4px 0;">Total Udhar: <b>₹${c.totalLoan}</b> | Total Paid: <b style="color:#4ade80;">₹${paidAmt}</b></p>
+      <p style="margin:6px 0; color:${remBal <= 0 ? '#4ade80' : '#f43f5e'};">Remaining Balance: <b style="font-size:17px;">₹${remBal <= 0 ? 0 : remBal}</b></p>
+
+      <div style="margin-top:6px; display:flex; gap:6px;">
+        ${billBtn}
+        <button style="background:#8b5cf6; color:white; padding:6px; font-size:11px; margin-top:6px;" onclick="downloadStatementPDF('${c.id}')">📄 Download Statement PDF</button>
+      </div>
+
+      ${remBal > 0 ? `
+      <div style="margin-top:12px; background:#1e293b; padding:12px; border-radius:8px; border:1px solid #38bdf8; text-align:center;">
+        <p style="font-size:13px; color:#38bdf8; font-weight:bold; margin:0 0 8px 0;">
+          ⚡ Weekly AutoPay Plan: ₹${currentWeekly} / Week
+        </p>
+        <div id="rzp-button-container-${c.id}" style="margin-top:10px;"></div>
+      </div>` : `<p style="color:#4ade80; font-weight:bold; text-align:center; margin-top:10px;">🎉 Aapka balance complete ho gaya hai!</p>`}
+
+      <div style="margin-top:10px;">
+        <button class="btn-link" style="width:100%;" onclick="openDirectPayLink()">💳 Direct Pay via Custom UPI</button>
+      </div>
+
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer; color:#fde047; font-size:12px; font-weight:bold;">📦 Udhar & Items List (${(c.udharHistory || []).length})</summary>
+        <div style="max-height:150px; overflow-y:auto; margin-top:6px;">
+          <table>
+            <thead><tr><th>Date</th><th>Item Description</th><th>Udhar Amt</th></tr></thead>
+            <tbody>${udharRows || '<tr><td colspan="3">No udhar items recorded</td></tr>'}</tbody>
+          </table>
+        </div>
+      </details>
+
+      <details style="margin-top:8px;">
+        <summary style="cursor:pointer; color:#4ade80; font-size:12px; font-weight:bold;">💳 Payment Collection History (${(c.history || []).length})</summary>
+        <div style="max-height:150px; overflow-y:auto; margin-top:6px;">
+          <table>
+            <thead><tr><th>Date</th><th>Status</th><th>Paid Amt</th></tr></thead>
+            <tbody>${paymentRows || '<tr><td colspan="3">No payment records found</td></tr>'}</tbody>
+          </table>
+        </div>
+      </details>
+    `;
+
+    resultContainer.appendChild(cardDiv);
+
+    if(remBal > 0) {
+      renderRazorpayButton(c.id, currentWeekly);
+    }
+  });
+}
+
+function renderRazorpayButton(custId, amount) {
+  let rzpContainer = document.getElementById(`rzp-button-container-${custId}`);
+  if (!rzpContainer) return;
+
+  let btnId = PLAN_BUTTONS[amount] || PLAN_BUTTONS["300"];
+  rzpContainer.innerHTML = ""; 
+
+  let form = document.createElement("form");
+  let script = document.createElement("script");
+  script.src = "https://cdn.razorpay.com/static/widget/subscription-button.js";
+  script.setAttribute("data-subscription_button_id", btnId);
+  script.setAttribute("data-button_theme", "rzp-light-standard");
+  script.async = true;
+  form.appendChild(script);
+  rzpContainer.appendChild(form);
+}
+
+function clearSearch() {
+  document.getElementById('searchQuery').value = '';
+  document.getElementById('customerSearchResult').innerHTML = '';
+}
+
+function sendOrderWhatsApp() {
+  let name = document.getElementById('orderCustName').value.trim();
+  let mobile = document.getElementById('orderCustMobile').value.trim();
+  let details = document.getElementById('orderDetails').value.trim();
+
+  if(!name || !mobile || !details) {
+    alert("Full details bharen!");
+    return;
+  }
+
+  let msg = `🛒 *NEW ONLINE ORDER - Krushna Cosmetics* 🛒\n\n👤 *Customer Name:* ${name}\n📞 *Mobile:* ${mobile}\n📝 *Items:* \n${details}`;
+  window.open(`https://wa.me/${SHOP_WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+function registerCustomer() {
+  let name = document.getElementById('custName').value.trim();
+  let mobile = document.getElementById('custMobile').value.trim();
+  let loan = parseFloat(document.getElementById('loanAmount').value);
+  let selectedAmount = parseInt(document.getElementById('autoPayPlanSelect').value);
+  let billFileInput = document.getElementById('custBillPhoto');
+
+  if(!name || !mobile || isNaN(loan)) {
+    alert("Saari details sahi se bharen!");
+    return;
+  }
+
+  let saveCustomerData = (billBase64 = "") => {
+    let newCust = {
+      id: Date.now(),
+      name: name,
+      mobile: mobile,
+      totalLoan: loan,
+      weeklyDeduction: selectedAmount,
+      buttonId: PLAN_BUTTONS[selectedAmount],
+      mandateStatus: 'PENDING_APPROVAL', 
+      lastDeductedWeek: "",
+      hasFailedDeduction: false,
+      billImage: billBase64,
+      udharHistory: [{
+        date: new Date().toLocaleDateString(),
+        amount: loan,
+        itemDetails: 'Initial Store Purchase (Opening Udhar)'
+      }],
+      history: [],
+      createdDate: new Date().toLocaleDateString()
+    };
+
+    saveCustomerToCloud(newCust).then(() => {
+      document.getElementById('custName').value = "";
+      document.getElementById('custMobile').value = "";
+      document.getElementById('custBillPhoto').value = "";
+      sendWhatsAppReminder(newCust.id);
+      alert("✅ Customer successfully cloud database me registered ho gaya!");
+    }).catch(err => {
+      alert("Error saving to cloud: " + err.message);
+    });
+  };
+
+  if (billFileInput.files && billFileInput.files[0]) {
+    compressImage(billFileInput.files[0], function(compressedBase64) {
+      saveCustomerData(compressedBase64);
+    });
+  } else {
+    saveCustomerData("");
+  }
+}
+
+function downloadStatementPDF(id) {
+  let c = customers.find(x => String(x.id) === String(id));
+  if(!c) return;
+
+  let paidTotal = getPaidTotal(c);
+  let remBal = Math.max(0, c.totalLoan - paidTotal);
+  let currentDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  let udharTableHtml = (c.udharHistory && c.udharHistory.length > 0)
+    ? c.udharHistory.map((u, i) => `
+        <tr>
+          <td style="padding:8px; border-bottom:1px solid #e2e8f0; text-align:center;">${i + 1}</td>
+          <td style="padding:8px; border-bottom:1px solid #e2e8f0;">${u.date}</td>
+          <td style="padding:8px; border-bottom:1px solid #e2e8f0;">${u.itemDetails}</td>
+          <td style="padding:8px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#b91c1c;">+₹${parseFloat(u.amount).toFixed(2)}</td>
+        </tr>`).join('')
+    : `<tr><td colspan="4" style="padding:10px; text-align:center; color:#64748b;">No items recorded</td></tr>`;
+
+  let paymentTableHtml = (c.history && c.history.length > 0) 
+    ? c.history.map((h, i) => `
+        <tr>
+          <td style="padding:8px; border-bottom:1px solid #e2e8f0; text-align:center;">${i + 1}</td>
+          <td style="padding:8px; border-bottom:1px solid #e2e8f0;">${h.date}</td>
+          <td style="padding:8px; border-bottom:1px solid #e2e8f0;">${h.status}</td>
+          <td style="padding:8px; border-bottom:1px solid #e2e8f0; text-align:right; font-weight:bold; color:#16a34a;">-₹${parseFloat(h.amount).toFixed(2)}</td>
+        </tr>`).join('')
+    : `<tr><td colspan="4" style="padding:10px; text-align:center; color:#64748b;">No payment entries recorded</td></tr>`;
+
+  let printWindow = window.open('', '', 'height=800,width=850');
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Statement_${c.name.replace(/\s+/g, '_')}</title>
+      <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 25px; color: #1e293b; background: #fff; }
+        .invoice-box { max-width: 800px; margin: auto; border: 1px solid #cbd5e1; border-radius: 8px; padding: 25px; }
+        .header { border-bottom: 2px solid #0284c7; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
+        .store-title { font-size: 22px; font-weight: bold; color: #0284c7; margin: 0 0 4px 0; }
+        .store-sub { font-size: 12px; color: #64748b; margin: 2px 0; }
+        .doc-title { font-size: 18px; font-weight: bold; text-align: right; color: #0f172a; margin: 0; }
+        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 20px; }
+        .details-block p { margin: 3px 0; font-size: 13px; color: #334155; }
+        .summary-cards { display: flex; gap: 10px; margin-bottom: 20px; }
+        .card-box { flex: 1; padding: 12px; border-radius: 6px; text-align: center; border: 1px solid #e2e8f0; }
+        .card-box strong { display: block; font-size: 18px; margin-top: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 15px; }
+        th { background: #f1f5f9; color: #475569; padding: 8px; border-bottom: 2px solid #cbd5e1; text-align: left; }
+        .footer { margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 15px; font-size: 11px; text-align: center; color: #94a3b8; }
+        @media print {
+          body { padding: 0; }
+          .invoice-box { border: none; padding: 0; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="invoice-box">
+        <div class="header">
+          <div>
+            <div class="store-title">🛍️ KRUSHNA COSMETICS</div>
+            <div class="store-sub">📍 Pavan Nagar, Ranjangaon Shenpunji, MH</div>
+            <div class="store-sub">📞 Contact: +91 8275237974</div>
+          </div>
+          <div>
+            <div class="doc-title">UDHAR STATEMENT</div>
+            <div class="store-sub" style="text-align:right;">Date: ${currentDate}</div>
+          </div>
+        </div>
+
+        <div class="details-grid">
+          <div class="details-block">
+            <p><strong>Customer Name:</strong> ${c.name}</p>
+            <p><strong>Mobile Number:</strong> +91 ${c.mobile}</p>
+          </div>
+          <div class="details-block" style="text-align: right;">
+            <p><strong>Account Status:</strong> ${remBal <= 0 ? '<span style="color:#16a34a; font-weight:bold;">CLEARED</span>' : 'ACTIVE'}</p>
+            <p><strong>Weekly Mandate:</strong> ₹${c.weeklyDeduction}/Week</p>
+          </div>
+        </div>
+
+        <div class="summary-cards">
+          <div class="card-box" style="background:#eff6ff;">
+            <span style="font-size:11px; color:#1d4ed8;">Total Udhar</span>
+            <strong style="color:#1e40af;">₹${c.totalLoan.toFixed(2)}</strong>
+          </div>
+          <div class="card-box" style="background:#f0fdf4;">
+            <span style="font-size:11px; color:#15803d;">Total Verified Paid</span>
+            <strong style="color:#166534;">₹${paidTotal.toFixed(2)}</strong>
+          </div>
+          <div class="card-box" style="background:${remBal <= 0 ? '#f0fdf4' : '#fef2f2'};">
+            <span style="font-size:11px; color:${remBal <= 0 ? '#15803d' : '#b91c1c'};">Remaining Balance</span>
+            <strong style="color:${remBal <= 0 ? '#166534' : '#991b1b'};">₹${remBal.toFixed(2)}</strong>
+          </div>
+        </div>
+
+        <h4 style="margin:0 0 6px 0; color:#0f172a; font-size:13px;">1. Udhar & Item Purchase History (Saman Kharid)</h4>
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:center;">#</th>
+              <th>Date</th>
+              <th>Item / Purchase Description</th>
+              <th style="text-align:right;">Amount (₹)</th>
+            </tr>
+          </thead>
+          <tbody>${udharTableHtml}</tbody>
+        </table>
+
+        <h4 style="margin:15px 0 6px 0; color:#0f172a; font-size:13px;">2. Payment Collection History (Jama Kiye Paise)</h4>
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:center;">#</th>
+              <th>Date</th>
+              <th>Payment Mode / Status</th>
+              <th style="text-align:right;">Amount (₹)</th>
+            </tr>
+          </thead>
+          <tbody>${paymentTableHtml}</tbody>
+        </table>
+
+        <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:30px;">
+          <div style="font-size:11px; color:#64748b;">
+            * Computer-generated statement.<br>
+            * Managed via Krushna Cosmetics Store Portal.
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:12px; font-weight:bold; color:#0f172a;">Krushna Cosmetics</div>
+            <div style="font-size:10px; color:#94a3b8; margin-top:20px;">Authorized Stamp / Sign</div>
+          </div>
+        </div>
+
+        <div class="footer">
+          Thank you for shopping at Krushna Cosmetics!
+        </div>
+      </div>
+
+      <script>
+        window.onload = function() { 
+          window.print(); 
+        };
+      <\/script>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
+function viewBillImage(id) {
+  let c = customers.find(x => String(x.id) === String(id));
+  if(!c || !c.billImage) return alert("Bill photo nahi hai.");
+
+  document.getElementById('modalTitle').innerText = `🧾 Bill: ${c.name}`;
+  document.getElementById('modalBody').innerHTML = `<img src="${c.billImage}" style="max-width:100%; border-radius:8px;">`;
+  document.getElementById('policyModal').style.display = 'flex';
+}
+
+function toggleMandateStatus(id) {
+  let c = customers.find(x => String(x.id) === String(id));
+  if(!c) return;
+  c.mandateStatus = c.mandateStatus === 'APPROVED' ? 'PENDING_APPROVAL' : 'APPROVED';
+  saveCustomerToCloud(c);
+}
+
+function getCurrentWeekKey(dateObj = new Date()) {
+  let today = new Date(dateObj);
+  return today.getFullYear() + "-W" + Math.ceil((today.getDate() - today.getDay()) / 7);
+}
+
+function populateMonthFilterOptions() {
+  let monthSelect = document.getElementById('reportMonthFilter');
+  if(!monthSelect) return;
+
+  let now = new Date();
+  let monthsHtml = '';
+
+  for (let i = 0; i < 6; i++) {
+    let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    let monthVal = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0');
+    let monthLabel = d.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+    monthsHtml += `<option value="${monthVal}">${monthLabel}</option>`;
+  }
+
+  monthSelect.innerHTML = monthsHtml;
+  populateWeekOptionsForMonth();
+}
+
+function populateWeekOptionsForMonth() {
+  let monthSelect = document.getElementById('reportMonthFilter');
+  let weekSelect = document.getElementById('reportWeekFilter');
+  if(!monthSelect || !weekSelect) return;
+
+  let [year, month] = monthSelect.value.split('-').map(Number);
+  let totalDays = new Date(year, month, 0).getDate();
+  let monthShort = new Date(year, month - 1, 1).toLocaleString('en-IN', { month: 'short' });
+
+  let weeksHtml = '';
+  let weekNum = 1;
+
+  for (let start = 1; start <= totalDays; start += 7) {
+    let end = Math.min(start + 6, totalDays);
+    let sampleDate = new Date(year, month - 1, start);
+    let weekKey = getCurrentWeekKey(sampleDate);
+
+    weeksHtml += `<option value="${weekKey}">Week ${weekNum} (${start}-${end} ${monthShort})</option>`;
+    weekNum++;
+  }
+
+  weekSelect.innerHTML = weeksHtml;
+  renderWeeklySummaryReport();
+}
+
+function runSundayMondayAutoCollection() {
+  let today = new Date();
+  let currentWeekKey = getCurrentWeekKey();
+  let processedCount = 0;
+  let failedCount = 0;
+
+  customers.forEach(c => {
+    let remBal = c.totalLoan - getPaidTotal(c);
+    if(c.mandateStatus === 'APPROVED' && remBal > 0 && c.lastDeductedWeek !== currentWeekKey) {
+      let deduct = Math.min(c.weeklyDeduction, remBal);
+      c.lastDeductedWeek = currentWeekKey;
+      
+      c.hasFailedDeduction = true; 
+      if(!c.history) c.history = [];
+      c.history.push({ 
+        date: today.toLocaleDateString(), 
+        amount: deduct, 
+        status: 'FAILED (Insufficient Funds)', 
+        weekKey: currentWeekKey 
+      });
+      failedCount++;
+      processedCount++;
+      saveCustomerToCloud(c);
+    }
+  });
+
+  alert(`Auto-Deduction request process ho gayi hai!\n\n⚠️ ${failedCount} customer(s) ke account me balance na hone par Status FAILED mark ho gaya hai.`);
+}
+
+function renderWeeklySummaryReport() {
+  let weekFilterSelect = document.getElementById('reportWeekFilter');
+  let selectedWeekKey = weekFilterSelect ? weekFilterSelect.value : getCurrentWeekKey();
+
+  let cashTotal = 0;
+  let onlineTotal = 0;
+
+  customers.forEach(c => {
+    (c.history || []).forEach(h => {
+      if(h.weekKey === selectedWeekKey && h.status && h.status.includes('SUCCESS')) {
+        let amt = parseFloat(h.amount) || 0;
+        if(h.status.includes('Cash')) {
+          cashTotal += amt;
+        } else {
+          onlineTotal += amt;
+        }
+      }
+    });
+  });
+
+  let grandWeeklyTotal = cashTotal + onlineTotal;
+
+  let reportDiv = document.getElementById('weeklySummaryContent');
+  if(reportDiv) {
+    reportDiv.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th style="color:#eab308; width:50%;">💵 Cash Collection</th>
+            <th style="color:#4ade80; width:50%;">💳 AutoDebit/Online</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-size:16px; font-weight:bold; color:#fde047; padding:10px;">₹${cashTotal.toFixed(2)}</td>
+            <td style="font-size:16px; font-weight:bold; color:#4ade80; padding:10px;">₹${onlineTotal.toFixed(2)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top:8px; text-align:center; font-size:13px; color:#38bdf8; font-weight:bold; background:#16223f; padding:6px; border-radius:6px; border:1px solid var(--border);">
+        💰 Total Weekly Collection: ₹${grandWeeklyTotal.toFixed(2)}
+      </div>
+    `;
+  }
+}
+
+function editCustomer(id) {
+  let c = customers.find(x => String(x.id) === String(id));
+  if(!c) return;
+  let newName = prompt("Name:", c.name);
+  let newTotal = prompt("Total Udhar:", c.totalLoan);
+  let newWeekly = prompt("Weekly AutoPay Plan (300, 500, 700, 1000, 2000):", c.weeklyDeduction);
+  
+  if(newName) c.name = newName.trim();
+  if(newTotal) c.totalLoan = parseFloat(newTotal);
+  if(newWeekly && PLAN_BUTTONS[newWeekly]) {
+    c.weeklyDeduction = parseInt(newWeekly);
+    c.buttonId = PLAN_BUTTONS[newWeekly];
+  }
+  
+  saveCustomerToCloud(c);
+}
+
+function addExtraUdhar(id) {
+  let c = customers.find(x => String(x.id) === String(id));
+  if(!c) return;
+
+  let amt = prompt(`[${c.name}] - Naya Udhar Kitne Rupaye Ka Hai? (₹):`);
+  if(!amt || isNaN(amt) || parseFloat(amt) <= 0) return;
+
+  let details = prompt("Kharida Hua Saman (Example: 2 Lipstick, 1 Cream):") || "Naya Saman Kharida";
+
+  let extraAmt = parseFloat(amt);
+  c.totalLoan += extraAmt; 
+
+  if(!c.udharHistory) c.udharHistory = [];
+  
+  c.udharHistory.push({
+    date: new Date().toLocaleDateString(),
+    amount: extraAmt,
+    itemDetails: details
+  });
+
+  saveCustomerToCloud(c).then(() => {
+    alert(`✅ ₹${extraAmt} Ka Naya Udhar List Me Add Ho Gaya!\nNaya Total Udhar: ₹${c.totalLoan}`);
+  });
+}
+
+function deleteCustomer(id) {
+  if (confirm("Delete customer from Cloud Database?")) {
+    deleteCustomerFromCloud(id);
+  }
+}
+
+function manualPay(id) {
+  let amt = prompt("Enter Cash Received (₹):");
+  if(!amt || isNaN(amt) || parseFloat(amt) <= 0) return;
+  let c = customers.find(x => String(x.id) === String(id));
+  if(c) {
+    let rem = c.totalLoan - getPaidTotal(c);
+    let payAmt = Math.min(parseFloat(amt), rem);
+    
+    if(!c.history) c.history = [];
+
+    c.history.push({ 
+      date: new Date().toLocaleDateString() + " (Cash)", 
+      amount: payAmt, 
+      status: 'SUCCESS (Cash)', 
+      weekKey: getCurrentWeekKey() 
+    });
+    
+    c.hasFailedDeduction = false; 
+    saveCustomerToCloud(c).then(() => {
+      alert(`₹${payAmt} Cash Entry successfully added & Cloud updated!`);
+    });
+  }
+}
+
+function sendWhatsAppReminder(id) {
+  let c = customers.find(x => String(x.id) === String(id));
+  if(!c) return;
+  let remBal = Math.max(0, c.totalLoan - getPaidTotal(c));
+  let payLink = getRazorpayLink();
+  
+  let msg = "";
+  if(c.hasFailedDeduction) {
+    msg = `⚠️ *IMPORTANT PAYMENT ALERT - Krushna Cosmetics*\n\nNamaste ${c.name} ji,\nAapke account me sufficient balance na hone ke karan iss hafte ka AutoPay (₹${c.weeklyDeduction}) deduct nahi ho paya hai.\n\n📌 *Total Udhar:* ₹${c.totalLoan}\n📌 *Remaining Balance:* ₹${remBal}\n\nKripya apne bank account me balance maintain karein ya neeche diye gaye link par click karke direct payment karein:\n👉 ${payLink}\n\nDhanyawad!`;
+  } else {
+    msg = `Namaste ${c.name} ji, Krushna Cosmetics se Total Udhar: ₹${c.totalLoan}, Balance: ₹${remBal}.\nWeekly AutoPay: ₹${c.weeklyDeduction}/week.\nDirect Payment Link: ${payLink}`;
+  }
+
+  window.open(`https://wa.me/91${c.mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+function openDirectPayLink() {
+  window.open(getRazorpayLink(), '_blank');
+}
+
+function renderAdminDashboard() {
+  let container = document.getElementById('adminCustomerCards');
+  if(!container) return;
+  
+  container.innerHTML = "";
+  renderWeeklySummaryReport();
+
+  if(customers.length === 0) {
+    container.innerHTML = "<p style='text-align:center;'>No records found in Cloud Database.</p>";
+    return;
+  }
+
+  let filterInput = document.getElementById('adminSearchQuery');
+  let filterText = filterInput ? filterInput.value.trim().toLowerCase() : '';
+
+  let filteredCustomers = customers.filter(c => 
+    (c.name && c.name.toLowerCase().includes(filterText)) || (c.mobile && c.mobile.includes(filterText))
+  );
+
+  if(filteredCustomers.length === 0) {
+    container.innerHTML = "<p style='text-align:center; color:#f87171; padding:10px;'>❌ Koi customer nahi mila.</p>";
+    return;
+  }
+
+  let htmlStr = "";
+  filteredCustomers.forEach(c => {
+    let paidAmt = getPaidTotal(c);
+    let remBal = c.totalLoan - paidAmt;
+    
+    let statusBadge = "";
+    if (remBal <= 0) {
+      statusBadge = `<span class="badge bg-completed">CLEARED</span>`;
+    } else if (c.hasFailedDeduction) {
+      statusBadge = `<span class="badge bg-failed">🔴 NO BALANCE (FAILED)</span>`;
+    } else if (c.mandateStatus === 'APPROVED') {
+      statusBadge = `<span class="badge bg-active">ACTIVE</span>`;
+    } else {
+      statusBadge = `<span class="badge bg-pending">PENDING</span>`;
+    }
+
+    let adminBillBtn = c.billImage ? `<button style="flex:1; font-size:10px; background:#0284c7;" onclick="viewBillImage('${c.id}')">🖼️ Bill</button>` : '';
+
+    let failedAlertBanner = c.hasFailedDeduction && remBal > 0 
+      ? `<div style="background:rgba(220, 38, 38, 0.15); border:1px solid #f87171; border-radius:6px; padding:8px; margin:8px 0; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#f87171; font-size:11px; font-weight:bold;">⚠️ Account me balance nahi tha (Auto-Debit Fail)</span>
+          <button class="btn-wa" style="width:auto; padding:4px 8px; font-size:10px; margin:0;" onclick="sendWhatsAppReminder('${c.id}')">📲 Send Alert</button>
+         </div>` 
+      : '';
+
+    let udharRows = (c.udharHistory && c.udharHistory.length > 0)
+      ? c.udharHistory.map(u => 
+          `<tr>
+            <td>${u.date}</td>
+            <td style="text-align:left;">${u.itemDetails}</td>
+            <td style="color:#fde047; font-weight:bold;">₹${u.amount}</td>
+          </tr>`
+        ).join('')
+      : `<tr><td colspan="3" style="color:#94a3b8;">No udhar entries</td></tr>`;
+
+    let historyRows = (c.history && c.history.length > 0) 
+      ? c.history.map(h => 
+          `<tr>
+            <td>${h.date}</td>
+            <td style="color:${h.status.includes('SUCCESS') ? '#4ade80' : '#f87171'}; font-weight:bold;">${h.status}</td>
+            <td>₹${h.amount}</td>
+          </tr>`
+        ).join('')
+      : `<tr><td colspan="3" style="color:#94a3b8;">No payment history</td></tr>`;
+
+    htmlStr += `
+      <div style="background:#0c162d; padding:12px; margin-bottom:12px; border-radius:8px; border-left: 4px solid ${c.hasFailedDeduction ? '#dc2626' : 'var(--accent)'};">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <b>${c.name} (${c.mobile})</b>
+          ${statusBadge}
+        </div>
+        <div style="font-size:12px; margin-top:6px;">
+          Total: <b>₹${c.totalLoan}</b> | Paid: <b style="color:#4ade80;">₹${paidAmt}</b> | Plan: <b>₹${c.weeklyDeduction}/wk</b> | Balance: <b style="color:#f43f5e;">₹${remBal <= 0 ? 0 : remBal}</b>
+        </div>
+        
+        ${failedAlertBanner}
+
+        <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:4px;">
+          <button style="flex:1; font-size:10px; background:#16a34a; font-weight:bold;" onclick="addExtraUdhar('${c.id}')">➕ Add Udhar</button>
+          <button class="${c.mandateStatus === 'APPROVED' ? 'btn-danger' : 'btn-success'}" style="flex:1; font-size:10px;" onclick="toggleMandateStatus('${c.id}')">${c.mandateStatus === 'APPROVED' ? 'Set Pending' : 'Approve'}</button>
+          <button style="flex:1; font-size:10px; background:#8b5cf6;" onclick="downloadStatementPDF('${c.id}')">PDF</button>
+          ${adminBillBtn}
+          <button class="btn-wa" style="flex:1; font-size:10px;" onclick="sendWhatsAppReminder('${c.id}')">Link</button>
+          <button style="flex:1; font-size:10px; background:#eab308; color:black;" onclick="editCustomer('${c.id}')">Edit</button>
+          <button style="flex:1; font-size:10px;" onclick="manualPay('${c.id}')">Cash</button>
+          <button class="btn-danger" style="flex:0.5; font-size:10px;" onclick="deleteCustomer('${c.id}')">🗑️</button>
+        </div>
+
+        <details style="margin-top:10px; border-top:1px dashed var(--border); padding-top:6px;">
+          <summary style="cursor:pointer; color:#fde047; font-size:11px; font-weight:bold;">📦 View Udhar & Item History (${c.udharHistory ? c.udharHistory.length : 0})</summary>
+          <div style="max-height:140px; overflow-y:auto; margin-top:6px;">
+            <table>
+              <thead><tr><th>Date</th><th>Item Description</th><th>Udhar Amt</th></tr></thead>
+              <tbody>${udharRows}</tbody>
+            </table>
+          </div>
+        </details>
+
+        <details style="margin-top:6px;">
+          <summary style="cursor:pointer; color:#38bdf8; font-size:11px; font-weight:bold;">💳 View Payment Collection History (${c.history ? c.history.length : 0})</summary>
+          <div style="max-height:140px; overflow-y:auto; margin-top:6px;">
+            <table>
+              <thead><tr><th>Date</th><th>Status</th><th>Paid Amt</th></tr></thead>
+              <tbody>${historyRows}</tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+    `;
+  });
+
+  container.innerHTML = htmlStr;
+}
+
+function showModal(type) {
+  document.getElementById('modalTitle').innerText = type.toUpperCase();
+  document.getElementById('modalBody').innerHTML = "<p>Krushna Cosmetics Official Portal</p>";
+  document.getElementById('policyModal').style.display = 'flex';
+}
+
+function closeModal() {
+  document.getElementById('policyModal').style.display = 'none';
+}
+</script>
+
+</body>
+</html>
