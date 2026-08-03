@@ -14,7 +14,9 @@ exports.handler = async (event) => {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
     console.log(event.headers);
     const signature = event.headers["x-razorpay-signature"];
-
+    console.log("Signature:", signature);
+    console.log("Secret:", webhookSecret);
+    console.log("Body:", event.body);
     const expectedSignature = crypto
       .createHmac("sha256", webhookSecret)
       .update(event.body)
