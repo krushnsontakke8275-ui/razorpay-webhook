@@ -3,7 +3,9 @@ const admin = require("firebase-admin");
 
 if (!admin.apps.length) {
   admin.initializeApp({
-    credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
+    credential: admin.credential.cert(
+      JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+    )
   });
 }
 
@@ -12,11 +14,15 @@ const db = admin.firestore();
 exports.handler = async (event) => {
   try {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
     console.log(event.headers);
+
     const signature = event.headers["x-razorpay-signature"];
+
     console.log("Signature:", signature);
     console.log("Secret:", webhookSecret);
     console.log("Body:", event.body);
+
     const expectedSignature = crypto
       .createHmac("sha256", webhookSecret)
       .update(event.body)
@@ -30,10 +36,9 @@ exports.handler = async (event) => {
     }
 
     const data = JSON.parse(event.body);
-
     const payment = data.payload.payment.entity;
 
-    await db.collection("payments").add({console.log("Payment saved to Firestore");
+    await db.collection("payments").add({
       payment_id: payment.id,
       amount: payment.amount / 100,
       status: payment.status,
@@ -41,17 +46,19 @@ exports.handler = async (event) => {
       createdAt: new Date()
     });
 
+    console.log("Payment saved to Firestore");
+
     return {
       statusCode: 200,
       body: "Webhook received"
     };
-    } catch (error) {
-  console.error(error);
 
-  return {
-    statusCode: 500,
-    body: error.stack
-  };
-}
-  
+  } catch (error) {
+    console.error(error);
+
+    return {
+      statusCode: 500,
+      body: error.stack
+    };
+  }
 };
