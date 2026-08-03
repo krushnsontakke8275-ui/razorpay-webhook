@@ -33,7 +33,7 @@ exports.handler = async (event) => {
 
     const payment = data.payload.payment.entity;
 
-    await db.collection("payments").add({
+    await db.collection("payments").add({console.log("Payment saved to Firestore");
       payment_id: payment.id,
       amount: payment.amount / 100,
       status: payment.status,
