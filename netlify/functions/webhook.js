@@ -45,11 +45,13 @@ exports.handler = async (event) => {
       statusCode: 200,
       body: "Webhook received"
     };
+    } catch (error) {
+  console.error(error);
 
-  } catch (error) {
-    return {
-      statusCode: 500,
-      body: error.message
-    };
-  }
+  return {
+    statusCode: 500,
+    body: error.stack
+  };
+}
+  
 };
