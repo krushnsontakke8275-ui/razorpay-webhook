@@ -12,7 +12,7 @@ const db = admin.firestore();
 exports.handler = async (event) => {
   try {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
-
+    console.log(event.headers);
     const signature = event.headers["x-razorpay-signature"];
 
     const expectedSignature = crypto
