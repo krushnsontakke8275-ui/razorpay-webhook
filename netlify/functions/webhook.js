@@ -1,13 +1,35 @@
-
+const express = require("express");
 const crypto = require("crypto");
 const admin = require("firebase-admin");
 
+const app = express();
+
+// Express JSON Middleware to get raw body for signature verification
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
+
+// Firebase Admin Initialization
 if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(
-      JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-    )
-  });
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    admin.initializeApp({
+      credential: admin.credential.cert(
+        JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+      )
+    });
+  } else {
+    // Fallback if local serviceAccountKey.json is used
+    try {
+      const serviceAccount = require("./serviceAccountKey.json");
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    } catch (e) {
+      console.error("Firebase Service Account credentials missing!");
+    }
+  }
 }
 
 const db = admin.firestore();
@@ -68,36 +90,44 @@ function paymentModeFor(eventName) {
     : "Direct UPI / Online";
 }
 
-exports.handler = async (event) => {
-  try {
-    if (event.httpMethod && event.httpMethod !== "POST") {
-      return { statusCode: 405, body: "Method Not Allowed" };
-    }
+function getWeekKey(dateObj = new Date()) {
+  const today = new Date(dateObj);
+  return today.getFullYear() + "-W" +
+    Math.ceil((today.getDate() - today.getDay()) / 7);
+}
 
+// Health Check Endpoint
+app.get("/", (req, res) => {
+  res.status(200).send("Razorpay Webhook Server is Live!");
+});
+
+// Razorpay Webhook Endpoint
+app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, res) => {
+  try {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
     if (!webhookSecret) {
       console.error("RAZORPAY_WEBHOOK_SECRET is missing");
-      return { statusCode: 500, body: "Webhook secret not configured" };
+      return res.status(500).send("Webhook secret not configured");
     }
 
-    const signature = event.headers?.["x-razorpay-signature"] ||
-      event.headers?.["X-Razorpay-Signature"];
+    const signature = req.headers["x-razorpay-signature"] || req.headers["X-Razorpay-Signature"];
+    const rawBody = req.rawBody ? req.rawBody.toString("utf8") : JSON.stringify(req.body);
 
-    if (!signature || !event.body) {
-      return { statusCode: 400, body: "Missing signature or body" };
+    if (!signature || !rawBody) {
+      return res.status(400).send("Missing signature or body");
     }
 
     const expectedSignature = crypto
       .createHmac("sha256", webhookSecret)
-      .update(event.body, "utf8")
+      .update(rawBody, "utf8")
       .digest("hex");
 
     if (signature.length !== expectedSignature.length ||
         !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
-      return { statusCode: 400, body: "Invalid signature" };
+      return res.status(400).send("Invalid signature");
     }
 
-    const data = JSON.parse(event.body);
+    const data = req.body;
     const eventName = data.event || "";
     const payment = getPaymentEntity(data);
     const subscription = getSubscriptionEntity(data);
@@ -118,7 +148,7 @@ exports.handler = async (event) => {
 
     // Only successful payment events change customer balance/history.
     if (!isSuccessfulEvent(eventName, payment) || !payment?.id) {
-      return { statusCode: 200, body: "Event received" };
+      return res.status(200).send("Event received");
     }
 
     const customerDoc = await findCustomer(payment, subscription);
@@ -130,7 +160,7 @@ exports.handler = async (event) => {
         email: payment.email,
         event: eventName
       });
-      return { statusCode: 200, body: "Payment received; customer not matched" };
+      return res.status(200).send("Payment received; customer not matched");
     }
 
     const customerRef = customerDoc.ref;
@@ -145,7 +175,6 @@ exports.handler = async (event) => {
       const customer = freshSnap.data() || {};
       const history = Array.isArray(customer.history) ? [...customer.history] : [];
 
-      // Razorpay may retry webhooks; do not count the same payment twice.
       if (history.some(h => String(h.payment_id || "") === paymentId)) return;
 
       const weekKey = getWeekKey(now);
@@ -191,15 +220,15 @@ exports.handler = async (event) => {
       mode: paymentModeFor(eventName)
     });
 
-    return { statusCode: 200, body: "Payment processed" };
+    return res.status(200).send("Payment processed");
   } catch (error) {
     console.error("Webhook error:", error);
-    return { statusCode: 500, body: "Webhook processing error" };
+    return res.status(500).send("Webhook processing error");
   }
-};
+});
 
-function getWeekKey(dateObj = new Date()) {
-  const today = new Date(dateObj);
-  return today.getFullYear() + "-W" +
-    Math.ceil((today.getDate() - today.getDay()) / 7);
-}
+// Express App Listener for Render
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Razorpay Webhook Server listening on port ${PORT}`);
+});
