@@ -13,43 +13,59 @@ app.use(express.json({
   }
 }));
 
-// Firebase Admin Initialization
+// Bulletproof Firebase Admin Initialization
 if (!admin.apps.length) {
   let serviceAccount = null;
 
-  try {
-    // Option 1: Environment Variable
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    } else {
-      // Option 2: Search serviceAccountKey.json across multiple paths in Render
-      const possiblePaths = [
-        path.join(process.cwd(), "serviceAccountKey.json"),
-        path.join(__dirname, "serviceAccountKey.json"),
-        path.join(__dirname, "../serviceAccountKey.json"),
-        path.join(__dirname, "../../serviceAccountKey.json"),
-        "/opt/render/project/src/serviceAccountKey.json"
-      ];
+  // 1. Try Environment Variable First
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    try {
+      let envData = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
+      // Clean up stringified escape characters if present
+      if (typeof envData === 'string') {
+        serviceAccount = JSON.parse(envData);
+      }
+    } catch (err) {
+      console.error("⚠️ Failed to parse FIREBASE_SERVICE_ACCOUNT env var:", err.message);
+    }
+  }
 
-      for (const p of possiblePaths) {
-        if (fs.existsSync(p)) {
-          serviceAccount = require(p);
-          console.log(`✅ Loaded serviceAccountKey.json from: ${p}`);
+  // 2. Fallback to Local serviceAccountKey.json file search if env failed/missing
+  if (!serviceAccount) {
+    const possiblePaths = [
+      path.join(process.cwd(), "serviceAccountKey.json"),
+      path.join(__dirname, "serviceAccountKey.json"),
+      path.join(__dirname, "../serviceAccountKey.json"),
+      path.join(__dirname, "../../serviceAccountKey.json"),
+      "/opt/render/project/src/serviceAccountKey.json"
+    ];
+
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        try {
+          serviceAccount = JSON.parse(fs.readFileSync(p, "utf8"));
+          console.log(`✅ Loaded serviceAccountKey.json from path: ${p}`);
           break;
+        } catch (e) {
+          console.error(`⚠️ Found file at ${p} but failed to parse:`, e.message);
         }
       }
     }
-  } catch (e) {
-    console.error("❌ Error resolving service account credentials:", e.message);
   }
 
+  // Initialize Admin SDK with loaded credentials
   if (serviceAccount) {
+    // Fix formatted private_key string if needed
+    if (serviceAccount.private_key && serviceAccount.private_key.includes("\\n")) {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+    }
+
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount)
     });
     console.log("🚀 Firebase Admin successfully initialized!");
   } else {
-    console.error("❌ CRITICAL: Could not find valid serviceAccountKey credentials!");
+    console.error("❌ CRITICAL: No valid Firebase Service Account credentials found!");
   }
 }
 
