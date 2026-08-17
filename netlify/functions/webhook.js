@@ -53,17 +53,20 @@ if (!admin.apps.length) {
     }
   }
 
-  // Initialize Admin SDK with loaded credentials
+  // Initialize Admin SDK with loaded credentials and explicit projectId
   if (serviceAccount) {
     // Fix formatted private_key string if needed
     if (serviceAccount.private_key && serviceAccount.private_key.includes("\\n")) {
       serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
     }
 
+    const projectId = serviceAccount.project_id || process.env.FIREBASE_PROJECT_ID;
+
     admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
+      credential: admin.credential.cert(serviceAccount),
+      projectId: projectId
     });
-    console.log("🚀 Firebase Admin successfully initialized!");
+    console.log("🚀 Firebase Admin successfully initialized for project:", projectId);
   } else {
     console.error("❌ CRITICAL: No valid Firebase Service Account credentials found!");
   }
