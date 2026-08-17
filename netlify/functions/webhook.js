@@ -1,6 +1,7 @@
 const express = require("express");
 const crypto = require("crypto");
 const admin = require("firebase-admin");
+const path = require("path");
 
 const app = express();
 
@@ -11,24 +12,33 @@ app.use(express.json({
   }
 }));
 
-// Firebase Admin Initialization
+// Firebase Admin Initialization (Direct Method 2 File Loading)
 if (!admin.apps.length) {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    admin.initializeApp({
-      credential: admin.credential.cert(
-        JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-      )
-    });
-  } else {
-    // Fallback if local serviceAccountKey.json is used
-    try {
-      const serviceAccount = require("./serviceAccountKey.json");
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-    } catch (e) {
-      console.error("Firebase Service Account credentials missing!");
+  let serviceAccount;
+  try {
+    // Try Environment Variable first if available
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    } else {
+      // Fallback to local serviceAccountKey.json file path
+      serviceAccount = require(path.join(__dirname, "../../serviceAccountKey.json"));
     }
+  } catch (e) {
+    try {
+      // Direct root fallback
+      serviceAccount = require("../../serviceAccountKey.json");
+    } catch (err) {
+      console.error("❌ Could not load serviceAccountKey.json:", err.message);
+    }
+  }
+
+  if (serviceAccount) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log("✅ Firebase Admin successfully initialized with Service Account Key!");
+  } else {
+    console.error("❌ Firebase Initialization Failed: Credentials missing.");
   }
 }
 
@@ -232,3 +242,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Razorpay Webhook Server listening on port ${PORT}`);
 });
+
