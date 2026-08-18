@@ -13,12 +13,23 @@ app.use(express.json({
   }
 }));
 
-// Bulletproof Firebase Admin Initialization
+// Bulletproof Firebase Admin Initialization with Base64 & Multi-Format Support
 if (!admin.apps.length) {
   let serviceAccount = null;
 
-  // 1. Try Environment Variable First
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  // 1. Try Base64 Encoded Environment Variable First (Most Reliable for Render)
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+    try {
+      const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64.trim(), 'base64').toString('utf8');
+      serviceAccount = JSON.parse(decoded);
+      console.log("✅ Successfully parsed FIREBASE_SERVICE_ACCOUNT_BASE64");
+    } catch (err) {
+      console.error("⚠️ Failed to parse FIREBASE_SERVICE_ACCOUNT_BASE64 env var:", err.message);
+    }
+  }
+
+  // 2. Fallback to Standard Environment Variable
+  if (!serviceAccount && process.env.FIREBASE_SERVICE_ACCOUNT) {
     try {
       let envData = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
       if (typeof envData === 'string') {
@@ -29,7 +40,7 @@ if (!admin.apps.length) {
     }
   }
 
-  // 2. Fallback to Local serviceAccountKey.json file search if env failed/missing
+  // 3. Fallback to Local serviceAccountKey.json File Search
   if (!serviceAccount) {
     const possiblePaths = [
       path.join(process.cwd(), "serviceAccountKey.json"),
@@ -52,19 +63,26 @@ if (!admin.apps.length) {
     }
   }
 
-  // Initialize Admin SDK with loaded credentials and explicit projectId
+  // Initialize Admin SDK with Credentials and Cleaned Private Key
   if (serviceAccount) {
-    if (serviceAccount.private_key && serviceAccount.private_key.includes("\\n")) {
-      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+    // Robust Key Formatting Fix for Render / Node 24 Environments
+    if (serviceAccount.private_key) {
+      serviceAccount.private_key = serviceAccount.private_key
+        .replace(/\\n/g, '\n')
+        .replace(/^"|"$/g, '');
     }
 
-    const projectId = serviceAccount.project_id || process.env.FIREBASE_PROJECT_ID;
+    const projectId = serviceAccount.project_id || process.env.FIREBASE_PROJECT_ID || "krushna-cosmetic";
 
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      projectId: projectId
-    });
-    console.log("🚀 Firebase Admin successfully initialized for project:", projectId);
+    try {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: projectId
+      });
+      console.log("🚀 Firebase Admin successfully initialized for project:", projectId);
+    } catch (initErr) {
+      console.error("🔥 Firebase admin.initializeApp error:", initErr.message);
+    }
   } else {
     console.error("❌ CRITICAL: No valid Firebase Service Account credentials found!");
   }
