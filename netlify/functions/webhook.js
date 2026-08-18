@@ -3,8 +3,15 @@ const crypto = require("crypto");
 const admin = require("firebase-admin");
 const path = require("path");
 const fs = require("fs");
+const Razorpay = require("razorpay");
 
 const app = express();
+
+// Initialize Razorpay Instance for Auto-Pause API Calls
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || "",
+  key_secret: process.env.RAZORPAY_KEY_SECRET || ""
+});
 
 // Express JSON Middleware to get raw body for signature verification
 app.use(express.json({
@@ -65,7 +72,6 @@ if (!admin.apps.length) {
 
   // Initialize Admin SDK with Credentials and Cleaned Private Key
   if (serviceAccount) {
-    // Robust Key Formatting Fix for Render / Node 24 Environments
     if (serviceAccount.private_key) {
       serviceAccount.private_key = serviceAccount.private_key
         .replace(/\\n/g, '\n')
@@ -244,7 +250,10 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
     const customerRef = customerDoc.ref;
     const paymentAmount = Number(payment.amount || 0) / 100;
     const paymentId = String(payment.id);
+    const subId = subscription?.id || payment.subscription_id || "";
     const now = new Date();
+
+    let finalRemainingBalance = 0;
 
     await db.runTransaction(async tx => {
       const freshSnap = await tx.get(customerRef);
@@ -268,7 +277,7 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
         paymentMode: mode,
         event: eventName,
         payment_id: paymentId,
-        subscription_id: subscription?.id || payment.subscription_id || "",
+        subscription_id: subId,
         weekKey
       });
 
@@ -279,11 +288,11 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
       }, 0);
 
       const totalLoan = Number(customer.totalLoan || 0);
-      const remainingBalance = Math.max(0, totalLoan - paidTotal);
+      finalRemainingBalance = Math.max(0, totalLoan - paidTotal);
 
       tx.update(customerRef, {
         history,
-        remainingBalance,
+        remainingBalance: finalRemainingBalance,
         lastPaymentAmount: paymentAmount,
         lastPaymentDate: now.toLocaleDateString("en-IN"),
         lastPaymentMode: mode,
@@ -298,8 +307,20 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
       paymentId,
       customerId: customerDoc.id,
       amount: paymentAmount,
+      remainingBalance: finalRemainingBalance,
       mode: paymentModeFor(eventName)
     });
+
+    // 🛑 AUTO-PAUSE SUBSCRIPTION IF REMAINING BALANCE REACHES 0 🛑
+    if (finalRemainingBalance <= 0 && subId) {
+      try {
+        console.log(`⏸️ Balance is 0. Attempting to pause AutoPay Subscription: ${subId}`);
+        await razorpay.subscriptions.pause(subId, { pause_at: "now" });
+        console.log(`✅ AutoPay successfully PAUSED for Subscription ID: ${subId}`);
+      } catch (pauseErr) {
+        console.error(`❌ Failed to pause AutoPay subscription [${subId}]:`, pauseErr.message);
+      }
+    }
 
     return res.status(200).send("Payment processed");
   } catch (error) {
