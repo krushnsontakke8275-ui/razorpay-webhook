@@ -3,15 +3,49 @@ const crypto = require("crypto");
 const admin = require("firebase-admin");
 const path = require("path");
 const fs = require("fs");
-const Razorpay = require("razorpay");
+const https = require("https");
 
 const app = express();
 
-// Initialize Razorpay Instance for Auto-Pause API Calls
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || "",
-  key_secret: process.env.RAZORPAY_KEY_SECRET || ""
-});
+// Helper Function: Pause Razorpay Subscription using Native HTTPS (No SDK Needed)
+function pauseSubscriptionNative(subscriptionId, keyId, keySecret) {
+  return new Promise((resolve, reject) => {
+    if (!subscriptionId || !keyId || !keySecret) {
+      return reject(new Error("Missing subscriptionId or Razorpay API keys"));
+    }
+
+    const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+    const postData = JSON.stringify({ pause_at: "now" });
+
+    const options = {
+      hostname: "api.razorpay.com",
+      port: 443,
+      path: `/v1/subscriptions/${subscriptionId}/pause`,
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${auth}`,
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(postData)
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let body = "";
+      res.on("data", chunk => body += chunk);
+      res.on("end", () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(body);
+        } else {
+          reject(new Error(`Razorpay API Error [${res.statusCode}]: ${body}`));
+        }
+      });
+    });
+
+    req.on("error", (err) => reject(err));
+    req.write(postData);
+    req.end();
+  });
+}
 
 // Express JSON Middleware to get raw body for signature verification
 app.use(express.json({
@@ -20,11 +54,10 @@ app.use(express.json({
   }
 }));
 
-// Bulletproof Firebase Admin Initialization with Base64 & Multi-Format Support
+// Bulletproof Firebase Admin Initialization
 if (!admin.apps.length) {
   let serviceAccount = null;
 
-  // 1. Try Base64 Encoded Environment Variable First (Most Reliable for Render)
   if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
     try {
       const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64.trim(), 'base64').toString('utf8');
@@ -35,7 +68,6 @@ if (!admin.apps.length) {
     }
   }
 
-  // 2. Fallback to Standard Environment Variable
   if (!serviceAccount && process.env.FIREBASE_SERVICE_ACCOUNT) {
     try {
       let envData = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
@@ -47,7 +79,6 @@ if (!admin.apps.length) {
     }
   }
 
-  // 3. Fallback to Local serviceAccountKey.json File Search
   if (!serviceAccount) {
     const possiblePaths = [
       path.join(process.cwd(), "serviceAccountKey.json"),
@@ -70,7 +101,6 @@ if (!admin.apps.length) {
     }
   }
 
-  // Initialize Admin SDK with Credentials and Cleaned Private Key
   if (serviceAccount) {
     if (serviceAccount.private_key) {
       serviceAccount.private_key = serviceAccount.private_key
@@ -202,16 +232,7 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
     const payment = getPaymentEntity(data);
     const subscription = getSubscriptionEntity(data);
 
-    if (!payment) {
-      console.log("⚠️ WARNING: No payment entity found in payload!");
-      console.log("Payload data structure:", JSON.stringify(data.payload || {}));
-    } else {
-      console.log(`💳 Extracted Payment ID: ${payment.id}, Status: ${payment.status}, Amount: ${payment.amount / 100}`);
-    }
-
-    // Keep every Razorpay payment in a separate audit collection.
     if (payment?.id) {
-      console.log(`💾 Attempting to save payment document [${payment.id}] to Firestore 'payments' collection...`);
       await db.collection("payments").doc(String(payment.id)).set({
         payment_id: payment.id,
         amount: Number(payment.amount || 0) / 100,
@@ -223,29 +244,18 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
       console.log(`✅ SUCCESS: Saved payment [${payment.id}] to Firestore 'payments' collection!`);
-    } else {
-      console.log("⚠️ Payment ID missing. Skipped saving to 'payments' collection.");
     }
 
-    // Only successful payment events change customer balance/history.
     if (!isSuccessfulEvent(eventName, payment) || !payment?.id) {
-      console.log(`ℹ️ Event "${eventName}" is not classified as a balance-updating successful event. Stopping here.`);
       return res.status(200).send("Event received");
     }
 
     const customerDoc = await findCustomer(payment, subscription);
 
     if (!customerDoc) {
-      console.warn("⚠️ No matching customer found in 'customers' collection for:", {
-        paymentId: payment.id,
-        contact: payment.contact,
-        email: payment.email,
-        event: eventName
-      });
+      console.warn("⚠️ No matching customer found in 'customers' collection");
       return res.status(200).send("Payment received; customer not matched");
     }
-
-    console.log(`👤 Matched Customer ID: ${customerDoc.id}`);
 
     const customerRef = customerDoc.ref;
     const paymentAmount = Number(payment.amount || 0) / 100;
@@ -263,7 +273,6 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
       const history = Array.isArray(customer.history) ? [...customer.history] : [];
 
       if (history.some(h => String(h.payment_id || "") === paymentId)) {
-        console.log(`ℹ️ Payment ID ${paymentId} already present in customer history. Duplicate skipped.`);
         return;
       }
 
@@ -303,19 +312,14 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
       });
     });
 
-    console.log("🎉 Payment processed and customer record updated successfully!", {
-      paymentId,
-      customerId: customerDoc.id,
-      amount: paymentAmount,
-      remainingBalance: finalRemainingBalance,
-      mode: paymentModeFor(eventName)
-    });
-
     // 🛑 AUTO-PAUSE SUBSCRIPTION IF REMAINING BALANCE REACHES 0 🛑
     if (finalRemainingBalance <= 0 && subId) {
       try {
-        console.log(`⏸️ Balance is 0. Attempting to pause AutoPay Subscription: ${subId}`);
-        await razorpay.subscriptions.pause(subId, { pause_at: "now" });
+        console.log(`⏸️ Remaining balance is 0. Pausing Razorpay Subscription: ${subId}`);
+        const keyId = process.env.RAZORPAY_KEY_ID;
+        const keySecret = process.env.RAZORPAY_KEY_SECRET;
+        
+        await pauseSubscriptionNative(subId, keyId, keySecret);
         console.log(`✅ AutoPay successfully PAUSED for Subscription ID: ${subId}`);
       } catch (pauseErr) {
         console.error(`❌ Failed to pause AutoPay subscription [${subId}]:`, pauseErr.message);
@@ -329,7 +333,6 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
   }
 });
 
-// Express App Listener for Render
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Razorpay Webhook Server listening on port ${PORT}`);
