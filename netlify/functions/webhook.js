@@ -21,7 +21,6 @@ if (!admin.apps.length) {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     try {
       let envData = process.env.FIREBASE_SERVICE_ACCOUNT.trim();
-      // Clean up stringified escape characters if present
       if (typeof envData === 'string') {
         serviceAccount = JSON.parse(envData);
       }
@@ -55,7 +54,6 @@ if (!admin.apps.length) {
 
   // Initialize Admin SDK with loaded credentials and explicit projectId
   if (serviceAccount) {
-    // Fix formatted private_key string if needed
     if (serviceAccount.private_key && serviceAccount.private_key.includes("\\n")) {
       serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
     }
@@ -144,9 +142,11 @@ app.get("/", (req, res) => {
 // Razorpay Webhook Endpoint
 app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, res) => {
   try {
+    console.log("📩 Webhook Hit Received on Server!");
+
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
     if (!webhookSecret) {
-      console.error("RAZORPAY_WEBHOOK_SECRET is missing");
+      console.error("❌ ERROR: RAZORPAY_WEBHOOK_SECRET is missing in environment variables!");
       return res.status(500).send("Webhook secret not configured");
     }
 
@@ -154,6 +154,7 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
     const rawBody = req.rawBody ? req.rawBody.toString("utf8") : JSON.stringify(req.body);
 
     if (!signature || !rawBody) {
+      console.error("❌ ERROR: Missing signature or rawBody!");
       return res.status(400).send("Missing signature or body");
     }
 
@@ -164,16 +165,29 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
 
     if (signature.length !== expectedSignature.length ||
         !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+      console.error("❌ ERROR: Signature Verification Failed! Check RAZORPAY_WEBHOOK_SECRET in Render.");
       return res.status(400).send("Invalid signature");
     }
 
+    console.log("✅ Signature Verified Successfully!");
+
     const data = req.body;
     const eventName = data.event || "";
+    console.log(`📌 Event Received: "${eventName}"`);
+
     const payment = getPaymentEntity(data);
     const subscription = getSubscriptionEntity(data);
 
+    if (!payment) {
+      console.log("⚠️ WARNING: No payment entity found in payload!");
+      console.log("Payload data structure:", JSON.stringify(data.payload || {}));
+    } else {
+      console.log(`💳 Extracted Payment ID: ${payment.id}, Status: ${payment.status}, Amount: ${payment.amount / 100}`);
+    }
+
     // Keep every Razorpay payment in a separate audit collection.
     if (payment?.id) {
+      console.log(`💾 Attempting to save payment document [${payment.id}] to Firestore 'payments' collection...`);
       await db.collection("payments").doc(String(payment.id)).set({
         payment_id: payment.id,
         amount: Number(payment.amount || 0) / 100,
@@ -184,17 +198,21 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
         subscription_id: subscription?.id || payment.subscription_id || "",
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
+      console.log(`✅ SUCCESS: Saved payment [${payment.id}] to Firestore 'payments' collection!`);
+    } else {
+      console.log("⚠️ Payment ID missing. Skipped saving to 'payments' collection.");
     }
 
     // Only successful payment events change customer balance/history.
     if (!isSuccessfulEvent(eventName, payment) || !payment?.id) {
+      console.log(`ℹ️ Event "${eventName}" is not classified as a balance-updating successful event. Stopping here.`);
       return res.status(200).send("Event received");
     }
 
     const customerDoc = await findCustomer(payment, subscription);
 
     if (!customerDoc) {
-      console.warn("No matching customer", {
+      console.warn("⚠️ No matching customer found in 'customers' collection for:", {
         paymentId: payment.id,
         contact: payment.contact,
         email: payment.email,
@@ -202,6 +220,8 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
       });
       return res.status(200).send("Payment received; customer not matched");
     }
+
+    console.log(`👤 Matched Customer ID: ${customerDoc.id}`);
 
     const customerRef = customerDoc.ref;
     const paymentAmount = Number(payment.amount || 0) / 100;
@@ -215,7 +235,10 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
       const customer = freshSnap.data() || {};
       const history = Array.isArray(customer.history) ? [...customer.history] : [];
 
-      if (history.some(h => String(h.payment_id || "") === paymentId)) return;
+      if (history.some(h => String(h.payment_id || "") === paymentId)) {
+        console.log(`ℹ️ Payment ID ${paymentId} already present in customer history. Duplicate skipped.`);
+        return;
+      }
 
       const weekKey = getWeekKey(now);
       const mode = paymentModeFor(eventName);
@@ -253,7 +276,7 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
       });
     });
 
-    console.log("Payment processed", {
+    console.log("🎉 Payment processed and customer record updated successfully!", {
       paymentId,
       customerId: customerDoc.id,
       amount: paymentAmount,
@@ -262,7 +285,7 @@ app.post(["/webhook/razorpay", "/.netlify/functions/webhook", "/"], async (req, 
 
     return res.status(200).send("Payment processed");
   } catch (error) {
-    console.error("Webhook error:", error);
+    console.error("🔥 Webhook processing error:", error);
     return res.status(500).send("Webhook processing error");
   }
 });
